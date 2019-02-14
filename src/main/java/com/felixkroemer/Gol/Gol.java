@@ -122,8 +122,8 @@ public class Gol {
 										for (int j = 0; j < count; j++) {
 											int x = rowCount;
 											int y = index - count + j;
-											int[] xy = { x + (Config.ROWS - posX) / 2,
-													y + (Config.COLUMNS - posY) / 2 };
+											int[] xy = { x + (Config.ROWS - posY) / 2,
+													y + (Config.COLUMNS - posX) / 2 };
 											l.add(xy);
 										}
 										num = "";

@@ -3,6 +3,7 @@ package com.felixkroemer.Gol;
 import java.awt.*;
 import javax.swing.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import javax.swing.event.*;
 import java.util.ArrayList;
 
@@ -55,6 +56,10 @@ public class Window extends JFrame {
 				cellPanel.add(ar[i][j]);
 			}
 		}
+
+		BufferedImage cursorImg = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+		Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(cursorImg, new Point(0, 0), "blank cursor");
+		cellPanel.setCursor(blankCursor);
 		c.add(cellPanel, BorderLayout.CENTER);
 
 		this.initBottomPanel();
@@ -95,7 +100,6 @@ public class Window extends JFrame {
 		for (int i = 0; i < ar.length; i++) {
 			for (int j = 0; j < ar[0].length; j++) {
 				ar[i][j].setBackground(Config.C2);
-				;
 			}
 		}
 	}
@@ -229,6 +233,69 @@ public class Window extends JFrame {
 				}
 			}
 		}
+
+		public void mouseEntered(MouseEvent e) {
+			JPanel p = (JPanel) e.getSource();
+			int[] pos = findPanel(p);
+			paintCursor(pos[0], pos[1], true);
+
+		}
+
+		public void mouseExited(MouseEvent e) {
+			JPanel p = (JPanel) e.getSource();
+			int[] pos = findPanel(p);
+			paintCursor(pos[0], pos[1], false);
+		}
+	}
+
+	public int[] findPanel(JPanel p) {
+		int x = 0;
+		int y = 0;
+		for (int i = 0; i < ar.length; i++) {
+			for (int j = 0; j < ar[0].length; j++) {
+				if (ar[i][j] == p) {
+					x = i;
+					y = j;
+				}
+			}
+		}
+		int[] pos = { x, y };
+		return pos;
+	}
+
+	public void paintCursor(int x, int y, boolean enter) {
+		Color p = enter ? Config.C1.darker() : Config.C2;
+		int width = (int) ((Config.ROWS * 1.0) / 40);
+		if (width < 2) {
+			width = 2;
+		}
+		for (int i = -width; i <= width; i++) {
+			for (int j = -width; j <= width; j++) {
+				int factor = Math.abs(i) + Math.abs(j);
+				if (factor >= width * 2.5) {
+					continue;
+				}
+				try {
+					if (ar[x + i][y + j].getBackground() != Config.C1) {
+						if (enter) {
+							int[] color = new int[3];
+							color[0] = p.getRed();
+							color[1] = p.getGreen();
+							color[2] = p.getBlue();
+							for (int k = 0; k < color.length; k++) {
+								color[k] = color[k] - factor * 40;
+								color[k] = color[k] < 0 ? 0 : color[k];
+							}
+							ar[x + i][y + j].setBackground(new Color(color[0], color[1], color[2]));
+						} else {
+							ar[x + i][y + j].setBackground(p);
+						}
+					}
+				} catch (ArrayIndexOutOfBoundsException f) {
+					continue;
+				}
+			}
+		}
 	}
 
 	public void scanPanels() {
@@ -283,8 +350,19 @@ public class Window extends JFrame {
 	class SleepListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			JTextField t = (JTextField) e.getSource();
-			game.sleepDuration = Integer.parseInt(t.getText());
-			sleepSlider.setValue(Integer.parseInt(t.getText()));
+			String text = t.getText();
+			if (!text.matches("(\\d)*")) {
+				t.setBackground(Color.RED);
+			} else {
+				t.setBackground(Color.WHITE);
+				if (Integer.parseInt(text) > sleepSlider.getMaximum()) {
+					sleepSlider.setValue(sleepSlider.getMaximum());
+				} else {
+					sleepSlider.setValue(Integer.parseInt(text));
+				}
+				t.setText(text);
+				game.sleepDuration = Integer.parseInt(text);
+			}
 		}
 	}
 
