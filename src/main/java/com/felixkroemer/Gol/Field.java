@@ -7,8 +7,10 @@ public class Field {
 	// is true if cell is alive
 	private int[][] count;
 	// is reset each generation and counts the number of live neighbors each cell
+	// has
 	private int aS;
-	// difference between the size of the GUI grid and the inner representation of the field
+	// difference between the size of the GUI grid and the inner representation of
+	// the field
 	private int[][] check = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } };
 
 	Field(Gol game) {
@@ -25,9 +27,14 @@ public class Field {
 	}
 
 	public void setLife(int i, int j, boolean b) {
-		i = i + aS;
-		j = j + aS;
-		inner[i][j] = b;
+		try {
+			i = i + aS;
+			j = j + aS;
+			inner[i][j] = b;
+		} catch (ArrayIndexOutOfBoundsException e) {
+			growField();
+			setLife(i - aS + 20, j - aS + 20, b);
+		}
 	}
 
 	public boolean getLife(int i, int j, boolean adjust) { // adjusts for aS of called from within Window class
@@ -35,12 +42,15 @@ public class Field {
 			i += aS;
 			j += aS;
 		}
-		return inner[i][j];
+		try {
+			return inner[i][j];
+		} catch (IndexOutOfBoundsException e) {
+			return false;
+		}
 	}
 
 	public void updateField() { // updates inner and calls Window.swap() if a cell changes its state
-
-		game.w.addGen();
+		game.getWindow().addGen();
 
 		boolean grow = false;
 		for (int i = 0; i < inner.length; i++) {
@@ -76,9 +86,9 @@ public class Field {
 					b = false;
 				}
 
-				// checks if a cell that changed its state is within the GUI grid
-				if (prev != b && i >= aS && i <= inner.length - aS - 1 && j >= aS && j <= inner[0].length - 1 - aS)
-					game.w.swap(i - aS, j - aS);
+				if (prev != b) {
+					game.getWindow().swap(i - aS, j - aS);
+				}
 			}
 		}
 	}

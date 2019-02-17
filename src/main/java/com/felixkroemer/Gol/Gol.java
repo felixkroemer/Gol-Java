@@ -5,11 +5,13 @@ import java.util.ArrayList;
 import java.io.*;
 
 public class Gol {
-	Window w;
-	Field f;
-	boolean isRunning;
-	HashMap<String, ArrayList<int[]>> presets;
-	int sleepDuration;
+	private Window w;
+	private Field f;
+	private boolean isRunning;
+	private HashMap<String, ArrayList<int[]>> presets;
+	private int sleepDuration;
+	private RunThread t;
+	public final Object pauseLock = new Object();
 
 	Gol() {
 		this.presets = initPresets();
@@ -17,17 +19,52 @@ public class Gol {
 		this.isRunning = false;
 		this.f = new Field(this);
 		this.w = new Window(this);
+		this.t = new RunThread(this);
 	}
 
-	public void run() {
-		while (isRunning) {
-			try {
-				this.f.updateField();
-				Thread.sleep(sleepDuration);
-			} catch (InterruptedException e) {
-				System.out.println(e);
-			}
-		}
+	public Window getWindow() {
+		return this.w;
+	}
+
+	public Field getField() {
+		return this.f;
+	}
+
+	public void start() {
+		this.isRunning = true;
+		new Thread(this.t).start();
+	}
+
+	public void stop() {
+		this.isRunning = false;
+	}
+
+	public void pauseThread() {
+		this.t.pause();
+	}
+
+	public void resumeThread() {
+		this.t.resume();
+	}
+
+	public boolean getActive() {
+		return this.t.isActive;
+	}
+
+	public boolean getRunning() {
+		return this.isRunning;
+	}
+
+	public int getSleep() {
+		return this.sleepDuration;
+	}
+
+	public void setSleep(int d) {
+		this.sleepDuration = d;
+	}
+
+	public HashMap<String, ArrayList<int[]>> getPresets() {
+		return this.presets;
 	}
 
 	public HashMap<String, ArrayList<int[]>> initPresets() {

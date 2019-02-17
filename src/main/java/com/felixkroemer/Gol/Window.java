@@ -16,6 +16,7 @@ public class Window extends JFrame {
 	// center components
 	private JPanel cellPanel;
 	private JPanel[][] ar;
+	private int[] origin = new int[] { 0, 0 };
 
 	// menu components
 	private JToggleButton startButton;
@@ -34,6 +35,7 @@ public class Window extends JFrame {
 	private int genCounter;
 	private JLabel presetLabel;
 	private JButton[] arrows;
+	private DirectionListener dL;
 
 	Window(Gol game) {
 
@@ -45,21 +47,13 @@ public class Window extends JFrame {
 		// setting up center components
 		cellPanel = new JPanel();
 		cellPanel.setLayout(new GridLayout(Config.ROWS, Config.COLUMNS, 0, 0));
-		ar = new JPanel[Config.ROWS][Config.COLUMNS];
-		CellListener cl = new CellListener();
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
-				ar[i][j] = new JPanel();
-				ar[i][j].setPreferredSize(new Dimension(Config.CELL_DIM, Config.CELL_DIM));
-				ar[i][j].setBackground(Config.C2);
-				ar[i][j].addMouseListener(cl);
-				cellPanel.add(ar[i][j]);
-			}
-		}
+		this.ar = fillCellPanel(Config.ROWS, Config.COLUMNS);
+		c.addKeyListener(new DirectionKeyListener());
 
 		BufferedImage cursorImg = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
 		Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(cursorImg, new Point(0, 0), "blank cursor");
 		cellPanel.setCursor(blankCursor);
+		c.setFocusable(true);
 		c.add(cellPanel, BorderLayout.CENTER);
 
 		this.initBottomPanel();
@@ -76,6 +70,74 @@ public class Window extends JFrame {
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 	}
 
+	private JPanel[][] fillCellPanel(int rows, int cols) {
+		JPanel[][] ar = new JPanel[rows][cols];
+		CellListener cl = new CellListener();
+		for (int i = 0; i < ar.length; i++) {
+			for (int j = 0; j < ar[0].length; j++) {
+				ar[i][j] = new JPanel();
+				ar[i][j].setPreferredSize(new Dimension(Config.CELL_DIM, Config.CELL_DIM));
+				ar[i][j].setBackground(Config.C2);
+				ar[i][j].addMouseListener(cl);
+				cellPanel.add(ar[i][j]);
+			}
+		}
+		return ar;
+	}
+
+	private void moveCellPanel(int dir) {
+		if (game.getActive()) {
+			return;
+		}
+		scanPanels();
+		int steps = 4;
+		int xOffset = 0;
+		int yOffset = 0;
+		switch (dir) {
+		case 0:
+			yOffset = -steps;
+			break;
+		case 1:
+			yOffset = steps;
+			break;
+		case 2:
+			xOffset = -steps;
+			break;
+		case 3:
+			xOffset = steps;
+			break;
+		}
+		origin[0] += yOffset;
+		origin[1] += xOffset;
+		boolean[][] b = new boolean[ar.length][ar[0].length];
+		for (int i = 0; i < ar.length; i++) {
+			for (int j = 0; j < ar[0].length; j++) {
+				try {
+					if (ar[i + yOffset][j + xOffset].getBackground() == Config.C1) {
+						b[i][j] = true;
+					} else {
+						b[i][j] = false;
+					}
+				} catch (ArrayIndexOutOfBoundsException e) {
+					if (game.getField().getLife(i + origin[0], j + origin[1], true)) {
+						b[i][j] = true;
+					} else {
+						b[i][j] = false;
+					}
+				}
+			}
+		}
+		for (int i = 0; i < ar.length; i++) {
+			for (int j = 0; j < ar[0].length; j++) {
+				if (b[i][j]) {
+					ar[i][j].setBackground(Config.C1);
+				} else {
+					ar[i][j].setBackground(Config.C2);
+				}
+			}
+		}
+	}
+
 	public void addGen() {
 		genCounter++;
 		genLabel.setText("Generation " + genCounter);
@@ -87,16 +149,19 @@ public class Window extends JFrame {
 	}
 
 	public void swap(int i, int j) {
-		if (ar[i][j].getBackground() == Config.C1) {
-			ar[i][j].setBackground(Config.C2);
-		} else {
-			ar[i][j].setBackground(Config.C1);
+		try {
+			if (ar[i - origin[0]][j - origin[1]].getBackground() == Config.C1) {
+				ar[i - origin[0]][j - origin[1]].setBackground(Config.C2);
+			} else {
+				ar[i - origin[0]][j - origin[1]].setBackground(Config.C1);
+			}
+		} catch (ArrayIndexOutOfBoundsException e) {
 		}
 	}
 
 	public void resetWindow() {
-		game.isRunning = false;
-		game.f.resetInner();
+		game.stop();
+		game.getField().resetInner();
 		for (int i = 0; i < ar.length; i++) {
 			for (int j = 0; j < ar[0].length; j++) {
 				ar[i][j].setBackground(Config.C2);
@@ -195,6 +260,8 @@ public class Window extends JFrame {
 			}
 
 			arrows[i] = new JButton(dir);
+			dL = new DirectionListener();
+			arrows[i].addActionListener(dL);
 			bottomPanel.add(arrows[i]);
 			arrows[i].setMargin(new Insets(0, 0, 0, 0));
 			arrows[i].setPreferredSize(new Dimension(25, 25));
@@ -204,10 +271,10 @@ public class Window extends JFrame {
 	}
 
 	public void initPresets() {
-		presetList = new JMenuItem[game.presets.size()];
+		presetList = new JMenuItem[game.getPresets().size()];
 		PresetListener pl = new PresetListener();
 		int i = 0;
-		for (String key : game.presets.keySet()) {
+		for (String key : game.getPresets().keySet()) {
 			presetList[i] = new JMenuItem(key);
 			presetList[i].addActionListener(pl);
 			presets.add(presetList[i]);
@@ -225,7 +292,7 @@ public class Window extends JFrame {
 	class CellListener extends MouseAdapter {
 		public void mouseClicked(MouseEvent e) {
 			JPanel p = (JPanel) e.getSource();
-			if (!game.isRunning) {
+			if (!game.getRunning()) {
 				if (p.getBackground() != Config.C1) {
 					p.setBackground(Config.C1);
 				} else {
@@ -238,7 +305,7 @@ public class Window extends JFrame {
 			JPanel p = (JPanel) e.getSource();
 			int[] pos = findPanel(p);
 			paintCursor(pos[0], pos[1], true);
-
+			c.requestFocusInWindow();
 		}
 
 		public void mouseExited(MouseEvent e) {
@@ -264,7 +331,7 @@ public class Window extends JFrame {
 	}
 
 	public void paintCursor(int x, int y, boolean enter) {
-		Color p = enter ? Config.C1.darker() : Config.C2;
+		Color p = enter ? blendColor(Config.C1, Config.C2, 0.8) : Config.C2;
 		int width = (int) ((Config.ROWS * 1.0) / 40);
 		if (width < 2) {
 			width = 2;
@@ -272,21 +339,15 @@ public class Window extends JFrame {
 		for (int i = -width; i <= width; i++) {
 			for (int j = -width; j <= width; j++) {
 				int factor = Math.abs(i) + Math.abs(j);
-				if (factor >= width * 2.5) {
+				if (factor >= width * 3) {
 					continue;
 				}
 				try {
 					if (ar[x + i][y + j].getBackground() != Config.C1) {
 						if (enter) {
-							int[] color = new int[3];
-							color[0] = p.getRed();
-							color[1] = p.getGreen();
-							color[2] = p.getBlue();
-							for (int k = 0; k < color.length; k++) {
-								color[k] = color[k] - factor * 40;
-								color[k] = color[k] < 0 ? 0 : color[k];
-							}
-							ar[x + i][y + j].setBackground(new Color(color[0], color[1], color[2]));
+							Color rgb = blendColor(Config.C1, Config.C2, 0.8 - (factor / 5.0));
+							ar[x + i][y + j].setBackground(rgb);
+
 						} else {
 							ar[x + i][y + j].setBackground(p);
 						}
@@ -298,12 +359,22 @@ public class Window extends JFrame {
 		}
 	}
 
+	public Color blendColor(Color c1, Color c2, double l) {
+		int[] rgb = new int[3];
+		rgb[0] = (int) (c1.getRed() * l + c2.getRed() * (1 - l));
+		rgb[1] = (int) (c1.getGreen() * l + c2.getGreen() * (1 - l));
+		rgb[2] = (int) (c1.getBlue() * l + c2.getBlue() * (1 - l));
+		return new Color(rgb[0], rgb[1], rgb[2]);
+	}
+
 	public void scanPanels() {
 		for (int i = 0; i < ar.length; i++) {
 			for (int j = 0; j < ar[0].length; j++) {
 				Color col = ar[i][j].getBackground();
 				if (col == Config.C1) {
-					game.f.setLife(i, j, true);
+					game.getField().setLife(i + origin[0], j + origin[1], true);
+				} else {
+					game.getField().setLife(i + origin[0], j + origin[1], false);
 				}
 			}
 		}
@@ -312,29 +383,23 @@ public class Window extends JFrame {
 	class StartButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			scanPanels();
-			new Thread() {
-				public void run() {
-					game.isRunning = true;
-					game.run();
-					game.w.revalidate();
-				}
-			}.start();
+			game.start();
 		}
 	}
 
 	class StopButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			startButton.setSelected(false);
-			game.isRunning = false;
+			game.stop();
 		}
 	}
 
 	class StepButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			startButton.setSelected(false);
-			game.isRunning = false;
 			scanPanels();
-			game.f.updateField();
+			game.stop();
+			game.getField().updateField();
 		}
 	}
 
@@ -361,7 +426,7 @@ public class Window extends JFrame {
 					sleepSlider.setValue(Integer.parseInt(text));
 				}
 				t.setText(text);
-				game.sleepDuration = Integer.parseInt(text);
+				game.setSleep(Integer.parseInt(text));
 			}
 		}
 	}
@@ -369,7 +434,7 @@ public class Window extends JFrame {
 	class SleepSliderListener implements ChangeListener {
 		public void stateChanged(ChangeEvent e) {
 			JSlider s = (JSlider) e.getSource();
-			game.sleepDuration = s.getValue();
+			game.setSleep(s.getValue());
 			sleepTF.setText(String.valueOf(s.getValue()));
 		}
 	}
@@ -385,16 +450,64 @@ public class Window extends JFrame {
 		resetGen();
 		startButton.setSelected(false);
 		String text = m.getText();
-		for (String key : game.presets.keySet()) {
+		for (String key : game.getPresets().keySet()) {
 			if (key.equals(text)) {
 				resetWindow();
 
-				ArrayList<int[]> a = game.presets.get(key);
+				ArrayList<int[]> a = game.getPresets().get(key);
 				for (int[] r : a) {
 					ar[r[0]][r[1]].setBackground(Config.C1);
 				}
 			}
 		}
 		presetLabel.setText(m.getText());
+	}
+
+	class DirectionListener implements ActionListener {
+		public void actionPerformed(ActionEvent e) {
+			game.pauseThread();
+			JButton b = (JButton) e.getSource();
+			switch (b.getText()) {
+			case "▲":
+				moveCellPanel(0);
+				break;
+			case "▼":
+				moveCellPanel(1);
+				break;
+			case "◀":
+				moveCellPanel(2);
+				break;
+			case "▶":
+				moveCellPanel(3);
+				break;
+			}
+			synchronized (game.pauseLock) {
+				game.resumeThread();
+			}
+		}
+	}
+
+	class DirectionKeyListener extends KeyAdapter {
+		public void keyPressed(KeyEvent e) {
+			int id = e.getKeyCode();
+			int dir = 0;
+			switch (id) {
+			case KeyEvent.VK_UP:
+				dir = 0;
+				break;
+			case KeyEvent.VK_DOWN:
+				dir = 1;
+				break;
+			case KeyEvent.VK_LEFT:
+				dir = 2;
+				break;
+			case KeyEvent.VK_RIGHT:
+				dir = 3;
+				break;
+			default:
+				return;
+			}
+			Window.this.dL.actionPerformed(new ActionEvent(Window.this.arrows[dir], 0, ""));
+		}
 	}
 }
