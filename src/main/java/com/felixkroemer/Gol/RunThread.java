@@ -13,9 +13,9 @@ public class RunThread implements Runnable {
 	}
 
 	public void run() {
-		while (game.testRunning()) {
+		while (game.getRunning()) {
 			synchronized (game.pauseLock) {
-				if (!game.testRunning()) {
+				if (!game.getRunning()) {
 					break;
 				}
 				if (paused) {
