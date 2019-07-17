@@ -1,8 +1,13 @@
 package com.felixkroemer.Gol;
 
-import java.util.HashMap;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.io.*;
+import java.util.HashMap;
+import java.util.List;
 
 public class Gol {
 	private Window w;
@@ -20,10 +25,6 @@ public class Gol {
 		this.f = new Field(this);
 		this.w = new Window(this);
 		this.t = new RunThread(this);
-	}
-
-	public Window getWindow() {
-		return this.w;
 	}
 
 	public Field getField() {
@@ -61,6 +62,21 @@ public class Gol {
 
 	public void setSleep(int d) {
 		this.sleepDuration = d;
+	}
+
+	public void addGen() {
+		this.w.addGen();
+	}
+
+	public boolean getLife(int x, int y) {
+		int aS = this.f.getAdditionalSpace();
+		x = x+aS;
+		y = y+aS;
+		return this.f.getLife(x, y);
+	}
+
+	public void swap(List<int[]> l) {
+		this.w.swap(l);
 	}
 
 	public HashMap<String, ArrayList<int[]>> getPresets() {

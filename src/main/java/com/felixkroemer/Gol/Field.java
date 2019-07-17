@@ -1,5 +1,7 @@
 package com.felixkroemer.Gol;
 
+import java.util.ArrayList;
+
 public class Field {
 
 	private Gol game;
@@ -11,7 +13,6 @@ public class Field {
 	private int aS;
 	// difference between the size of the GUI grid and the inner representation of
 	// the field
-	private int[][] check = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } };
 
 	Field(Gol game) {
 		this.game = game;
@@ -37,45 +38,38 @@ public class Field {
 		}
 	}
 
-	public boolean getLife(int i, int j, boolean adjust) { // adjusts for aS of called from within Window class
-		if (adjust) {
-			i += aS;
-			j += aS;
-		}
+	public boolean getLife(int x, int y) {
 		try {
-			return inner[i][j];
+			return inner[x][y];
 		} catch (IndexOutOfBoundsException e) {
 			return false;
 		}
 	}
 
 	public void updateField() { // updates inner and calls Window.swap() if a cell changes its state
-		game.getWindow().addGen();
+		game.addGen();
 
-		boolean grow = false;
 		for (int i = 0; i < inner.length; i++) {
-			if (getLife(i, 0, false) || getLife(0, i, false) || getLife(inner.length - 1, i, false)
-					|| getLife(i, inner.length - 1, false)) {
-				grow = true;
+			if (getLife(i, 0) || getLife(0, i) || getLife(inner.length - 1, i) || getLife(i, inner.length - 1)) {
+				growField();
 				break;
 			}
-		}
-		if (grow) {
-			growField();
 		}
 
 		resetCount();
 		updateInner();
+
+		ArrayList<int[]> l = new ArrayList<>();
 		for (int i = 0; i < inner.length; i++) {
 			for (int j = 0; j < inner[0].length; j++) {
 
-				boolean prev = getLife(i, j, false);
+				boolean prev = getLife(i, j);
 				boolean b;
 
 				if (count[i][j] < 2) {
 					inner[i][j] = false;
 					b = false;
-				} else if (count[i][j] == 2 && !getLife(i, j, false)) {
+				} else if (count[i][j] == 2 && !getLife(i, j)) {
 					inner[i][j] = false;
 					b = false;
 				} else if (count[i][j] == 3 || count[i][j] == 2) {
@@ -87,16 +81,18 @@ public class Field {
 				}
 
 				if (prev != b) {
-					game.getWindow().swap(i - aS, j - aS);
+					l.add(new int[] { i - aS, j - aS });
 				}
 			}
 		}
+		game.swap(l);
 	}
 
 	public void updateInner() {
+		int[][] check = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } };
 		for (int i = 0; i < inner.length; i++) {
 			for (int j = 0; j < inner[0].length; j++) {
-				if (getLife(i, j, false)) {
+				if (getLife(i, j)) {
 					for (int k = 0; k < check.length; k++) {
 						if (i + check[k][0] >= 0 && i + check[k][0] <= inner.length - 1 && j + check[k][1] >= 0
 								&& j + check[k][1] <= inner[0].length - 1) {
@@ -144,6 +140,10 @@ public class Field {
 				inner[i][j] = false;
 			}
 		}
+	}
+
+	public int getAdditionalSpace() {
+		return this.aS;
 	}
 
 }

@@ -1,11 +1,39 @@
 package com.felixkroemer.Gol;
 
-import java.awt.*;
-import javax.swing.*;
-import java.awt.event.*;
-import java.awt.image.BufferedImage;
-import javax.swing.event.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JSlider;
+import javax.swing.JTextField;
+import javax.swing.JToggleButton;
+import javax.swing.SwingConstants;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
 public class Window extends JFrame {
 
@@ -14,8 +42,7 @@ public class Window extends JFrame {
 	private Container c;
 
 	// center components
-	private JPanel cellPanel;
-	private JPanel[][] ar;
+	private PixelPanel p;
 	private int[] origin = new int[] { 0, 0 };
 
 	// menu components
@@ -45,16 +72,13 @@ public class Window extends JFrame {
 		this.initMenuBar();
 
 		// setting up center components
-		cellPanel = new JPanel();
-		cellPanel.setLayout(new GridLayout(Config.ROWS, Config.COLUMNS, 0, 0));
-		this.ar = fillCellPanel(Config.ROWS, Config.COLUMNS);
-		c.addKeyListener(new DirectionKeyListener());
+		this.p = new PixelPanel();
+		this.p.addKeyListener(new DirectionKeyListener());
+		this.p.addMouseMotionListener(new MotionListener());
+		this.p.addMouseWheelListener(new ZoomListener());
 
-		BufferedImage cursorImg = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-		Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(cursorImg, new Point(0, 0), "blank cursor");
-		cellPanel.setCursor(blankCursor);
 		c.setFocusable(true);
-		c.add(cellPanel, BorderLayout.CENTER);
+		c.add(this.p, BorderLayout.CENTER);
 
 		this.initBottomPanel();
 
@@ -70,56 +94,32 @@ public class Window extends JFrame {
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 	}
 
-	private JPanel[][] fillCellPanel(int rows, int cols) {
-		JPanel[][] ar = new JPanel[rows][cols];
-		CellListener cl = new CellListener();
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
-				ar[i][j] = new JPanel();
-				ar[i][j].setPreferredSize(new Dimension(Config.CELL_DIM, Config.CELL_DIM));
-				ar[i][j].setBackground(Config.C2);
-				ar[i][j].addMouseListener(cl);
-				cellPanel.add(ar[i][j]);
-			}
-		}
-		return ar;
-	}
-
-	private void moveCellPanel(int dir) {
-		if (game.getActive()) {
+	private void moveCellPanel(int xOffset, int yOffset) {
+		if (xOffset == 0 && yOffset == 0) {
 			return;
 		}
-		scanPanels();
-		int steps = 4;
-		int xOffset = 0;
-		int yOffset = 0;
-		switch (dir) {
-		case 0:
-			yOffset = -steps;
-			break;
-		case 1:
-			yOffset = steps;
-			break;
-		case 2:
-			xOffset = -steps;
-			break;
-		case 3:
-			xOffset = steps;
-			break;
+		game.pauseThread();
+		while (game.getActive()) { // wait until Field.updateField returns and Thread sleeps or is suspended
+			try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+			}
 		}
+		this.scanPixelPanel();
 		origin[0] += yOffset;
 		origin[1] += xOffset;
-		boolean[][] b = new boolean[ar.length][ar[0].length];
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
+		boolean[][] b = new boolean[this.p.getCols()][this.p.getRows()];
+		Vector<Vector<Boolean>> cells = this.p.getCells();
+		for (int i = 0; i < this.p.getRows(); i++) {
+			for (int j = 0; j < this.p.getCols(); j++) {
 				try {
-					if (ar[i + yOffset][j + xOffset].getBackground() == Config.C1) {
+					if (cells.get(i + yOffset).get(j + xOffset)) {
 						b[i][j] = true;
 					} else {
 						b[i][j] = false;
 					}
 				} catch (ArrayIndexOutOfBoundsException e) {
-					if (game.getField().getLife(i + origin[0], j + origin[1], true)) {
+					if (game.getLife(i + origin[0], j + origin[1])) {
 						b[i][j] = true;
 					} else {
 						b[i][j] = false;
@@ -127,14 +127,16 @@ public class Window extends JFrame {
 				}
 			}
 		}
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
+		this.p.reset();
+		for (int i = 0; i < this.p.getRows(); i++) {
+			for (int j = 0; j < this.p.getCols(); j++) {
 				if (b[i][j]) {
-					ar[i][j].setBackground(Config.C1);
-				} else {
-					ar[i][j].setBackground(Config.C2);
+					this.p.swap(i, j);
 				}
 			}
+		}
+		synchronized (game.pauseLock) {
+			game.resumeThread();
 		}
 	}
 
@@ -149,24 +151,23 @@ public class Window extends JFrame {
 	}
 
 	public void swap(int i, int j) {
-		try {
-			if (ar[i - origin[0]][j - origin[1]].getBackground() == Config.C1) {
-				ar[i - origin[0]][j - origin[1]].setBackground(Config.C2);
-			} else {
-				ar[i - origin[0]][j - origin[1]].setBackground(Config.C1);
-			}
-		} catch (ArrayIndexOutOfBoundsException e) {
+		this.p.swap(i - this.origin[0], j - this.origin[1]);
+	}
+
+	public void swap(List<int[]> l) {
+		for (int[] a : l) {
+			a[0] = a[0] - this.origin[0];
+			a[1] = a[1] - this.origin[1];
 		}
+		this.p.swapAll(l);
 	}
 
 	public void resetWindow() {
 		game.stop();
 		game.getField().resetInner();
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
-				ar[i][j].setBackground(Config.C2);
-			}
-		}
+		this.origin[0] = 0;
+		this.origin[1] = 0;
+		this.p.initPanel(Config.COLUMNS, Config.ROWS);
 	}
 
 	public void initMenuBar() {
@@ -289,89 +290,11 @@ public class Window extends JFrame {
 		}
 	}
 
-	class CellListener extends MouseAdapter {
-		public void mouseClicked(MouseEvent e) {
-			JPanel p = (JPanel) e.getSource();
-			if (!game.getRunning()) {
-				if (p.getBackground() != Config.C1) {
-					p.setBackground(Config.C1);
-				} else {
-					p.setBackground(Config.C2);
-				}
-			}
-		}
-
-		public void mouseEntered(MouseEvent e) {
-			JPanel p = (JPanel) e.getSource();
-			int[] pos = findPanel(p);
-			paintCursor(pos[0], pos[1], true);
-			c.requestFocusInWindow();
-		}
-
-		public void mouseExited(MouseEvent e) {
-			JPanel p = (JPanel) e.getSource();
-			int[] pos = findPanel(p);
-			paintCursor(pos[0], pos[1], false);
-		}
-	}
-
-	public int[] findPanel(JPanel p) {
-		int x = 0;
-		int y = 0;
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
-				if (ar[i][j] == p) {
-					x = i;
-					y = j;
-				}
-			}
-		}
-		int[] pos = { x, y };
-		return pos;
-	}
-
-	public void paintCursor(int x, int y, boolean enter) {
-		Color p = enter ? blendColor(Config.C1, Config.C2, 0.8) : Config.C2;
-		int width = (int) ((Config.ROWS * 1.0) / 40);
-		if (width < 2) {
-			width = 2;
-		}
-		for (int i = -width; i <= width; i++) {
-			for (int j = -width; j <= width; j++) {
-				int factor = Math.abs(i) + Math.abs(j);
-				if (factor >= width * 3) {
-					continue;
-				}
-				try {
-					if (ar[x + i][y + j].getBackground() != Config.C1) {
-						if (enter) {
-							Color rgb = blendColor(Config.C1, Config.C2, 0.8 - (factor / 5.0));
-							ar[x + i][y + j].setBackground(rgb);
-
-						} else {
-							ar[x + i][y + j].setBackground(p);
-						}
-					}
-				} catch (ArrayIndexOutOfBoundsException f) {
-					continue;
-				}
-			}
-		}
-	}
-
-	public Color blendColor(Color c1, Color c2, double l) {
-		int[] rgb = new int[3];
-		rgb[0] = (int) (c1.getRed() * l + c2.getRed() * (1 - l));
-		rgb[1] = (int) (c1.getGreen() * l + c2.getGreen() * (1 - l));
-		rgb[2] = (int) (c1.getBlue() * l + c2.getBlue() * (1 - l));
-		return new Color(rgb[0], rgb[1], rgb[2]);
-	}
-
-	public void scanPanels() {
-		for (int i = 0; i < ar.length; i++) {
-			for (int j = 0; j < ar[0].length; j++) {
-				Color col = ar[i][j].getBackground();
-				if (col == Config.C1) {
+	public void scanPixelPanel() {
+		Vector<Vector<Boolean>> cells = this.p.getCells();
+		for (int i = 0; i < cells.size(); i++) {
+			for (int j = 0; j < cells.get(0).size(); j++) {
+				if (cells.get(i).get(j)) {
 					game.getField().setLife(i + origin[0], j + origin[1], true);
 				} else {
 					game.getField().setLife(i + origin[0], j + origin[1], false);
@@ -382,7 +305,8 @@ public class Window extends JFrame {
 
 	class StartButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
-			scanPanels();
+			scanPixelPanel();
+			p.setEditable(false);
 			game.start();
 		}
 	}
@@ -390,6 +314,7 @@ public class Window extends JFrame {
 	class StopButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			startButton.setSelected(false);
+			p.setEditable(true);
 			game.stop();
 		}
 	}
@@ -397,18 +322,51 @@ public class Window extends JFrame {
 	class StepButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			startButton.setSelected(false);
-			scanPanels();
+			p.setEditable(true);
+			scanPixelPanel();
 			game.stop();
 			game.getField().updateField();
+		}
+	}
+
+	public void zoom(int a) {
+		if(a<0 && !this.p.checkZoomOut(a)) {
+			return;
+		}
+		this.game.pauseThread();
+		while (game.getActive()) {
+			try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+			}
+		}
+		this.scanPixelPanel();
+		boolean[][] cells = null;
+		int gap = this.p.zoomGap(a);
+		if (a < 0) {
+			cells = new boolean[this.p.getCols() - gap][this.p.getRows() - gap];
+			for (int i = 0; i < cells.length; i++) {
+				for (int j = 0; j < cells[0].length; j++) {
+					cells[i][j] = this.game.getLife(i + origin[0] + gap / 2, j + origin[1] + gap / 2);
+				}
+			}
+		}
+		this.p.zoom(a, cells);
+		this.origin[0] += gap / 2;
+		this.origin[1] += gap / 2;
+		synchronized (game.pauseLock) {
+			this.game.resumeThread();
 		}
 	}
 
 	class ResetButtonListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			startButton.setSelected(false);
+			Window.this.p.setEditable(true);
 			resetWindow();
 			resetGen();
 			presetLabel.setText("No Pattern selected");
+
 		}
 	}
 
@@ -447,17 +405,16 @@ public class Window extends JFrame {
 	}
 
 	public void loadPreset(JMenuItem m) {
-		resetGen();
+		this.resetGen();
+		this.resetWindow();
+		this.p.setEditable(true);
 		startButton.setSelected(false);
 		String text = m.getText();
 		for (String key : game.getPresets().keySet()) {
 			if (key.equals(text)) {
 				resetWindow();
-
 				ArrayList<int[]> a = game.getPresets().get(key);
-				for (int[] r : a) {
-					ar[r[0]][r[1]].setBackground(Config.C1);
-				}
+				this.p.swapAll(a);
 			}
 		}
 		presetLabel.setText(m.getText());
@@ -465,29 +422,27 @@ public class Window extends JFrame {
 
 	class DirectionListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
-			game.pauseThread();
 			JButton b = (JButton) e.getSource();
 			switch (b.getText()) {
 			case "▲":
-				moveCellPanel(0);
+				moveCellPanel(0, 4);
 				break;
 			case "▼":
-				moveCellPanel(1);
+				moveCellPanel(0, -4);
 				break;
 			case "◀":
-				moveCellPanel(2);
+				moveCellPanel(4, 0);
 				break;
 			case "▶":
-				moveCellPanel(3);
+				moveCellPanel(-4, 0);
 				break;
-			}
-			synchronized (game.pauseLock) {
-				game.resumeThread();
 			}
 		}
 	}
 
 	class DirectionKeyListener extends KeyAdapter {
+
+		@Override
 		public void keyPressed(KeyEvent e) {
 			int id = e.getKeyCode();
 			int dir = 0;
@@ -510,4 +465,44 @@ public class Window extends JFrame {
 			Window.this.dL.actionPerformed(new ActionEvent(Window.this.arrows[dir], 0, ""));
 		}
 	}
+
+	class MotionListener extends MouseMotionAdapter {
+		int[] prev;
+		long time;
+
+		@Override
+		public void mouseDragged(MouseEvent e) {
+			int[] curr = Window.this.p.getCellCoordinates(e.getX(), e.getY());
+			if (time == 0) {
+				time = e.getWhen();
+			}
+			if (e.getWhen() - time >= 300) {
+				prev = null;
+				time = e.getWhen();
+			}
+
+			if (prev == null) {
+				prev = curr;
+			} else {
+				int xDiff = prev[0] - curr[0];
+				int yDiff = prev[1] - curr[1];
+				if (xDiff != 0 || yDiff != 0) {
+					Window.this.moveCellPanel(xDiff, yDiff);
+					prev = curr;
+				}
+			}
+		}
+	}
+
+	class ZoomListener implements MouseWheelListener {
+
+		public void mouseWheelMoved(MouseWheelEvent e) {
+			if(e.getWheelRotation() == 0) {
+				return;
+			}
+			Window.this.zoom(e.getWheelRotation());
+		}
+
+	}
+
 }
