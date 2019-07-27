@@ -14,7 +14,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
@@ -162,12 +161,12 @@ public class Window extends JFrame {
 		this.p.swapAll(l);
 	}
 
-	public void resetWindow() {
+	public void resetWindow(int rows, int cols) {
 		game.stop();
 		game.getField().resetInner();
+		this.p.initPanel(rows, cols);
 		this.origin[0] = 0;
 		this.origin[1] = 0;
-		this.p.initPanel(Config.COLUMNS, Config.ROWS);
 	}
 
 	public void initMenuBar() {
@@ -272,10 +271,10 @@ public class Window extends JFrame {
 	}
 
 	public void initPresets() {
-		presetList = new JMenuItem[game.getPresets().size()];
+		presetList = new JMenuItem[PresetController.getPresetNames().size()];
 		PresetListener pl = new PresetListener();
 		int i = 0;
-		for (String key : game.getPresets().keySet()) {
+		for (String key : PresetController.getPresetNames()) {
 			presetList[i] = new JMenuItem(key);
 			presetList[i].addActionListener(pl);
 			presets.add(presetList[i]);
@@ -330,7 +329,7 @@ public class Window extends JFrame {
 	}
 
 	public void zoom(int a) {
-		if(a<0 && !this.p.checkZoomOut(a)) {
+		if (a < 0 && !this.p.checkZoomOut(a)) {
 			return;
 		}
 		this.game.pauseThread();
@@ -363,7 +362,7 @@ public class Window extends JFrame {
 		public void actionPerformed(ActionEvent e) {
 			startButton.setSelected(false);
 			Window.this.p.setEditable(true);
-			resetWindow();
+			resetWindow(Config.ROWS, Config.COLUMNS);
 			resetGen();
 			presetLabel.setText("No Pattern selected");
 
@@ -405,18 +404,22 @@ public class Window extends JFrame {
 	}
 
 	public void loadPreset(JMenuItem m) {
+
 		this.resetGen();
-		this.resetWindow();
 		this.p.setEditable(true);
 		startButton.setSelected(false);
-		String text = m.getText();
-		for (String key : game.getPresets().keySet()) {
-			if (key.equals(text)) {
-				resetWindow();
-				ArrayList<int[]> a = game.getPresets().get(key);
-				this.p.swapAll(a);
-			}
+		Preset preset = PresetController.getPreset(m.getText());
+
+		Vector<int[]> v = new Vector<int[]>();
+		int[] boundaries = preset.getBoundaries();
+		int max = boundaries[0] > boundaries[1] ? boundaries[0] : boundaries[1];
+		this.resetWindow(max + 10, max + 10);
+		for (int[] a : preset.getCoords()) {
+			int x = a[0] + (this.p.getCols() - preset.getBoundaries()[1]) / 2;
+			int y = a[1] + (this.p.getRows() - preset.getBoundaries()[0]) / 2;
+			v.add(new int[] { x, y });
 		}
+		this.swap(v);
 		presetLabel.setText(m.getText());
 	}
 
@@ -497,7 +500,7 @@ public class Window extends JFrame {
 	class ZoomListener implements MouseWheelListener {
 
 		public void mouseWheelMoved(MouseWheelEvent e) {
-			if(e.getWheelRotation() == 0) {
+			if (e.getWheelRotation() == 0) {
 				return;
 			}
 			Window.this.zoom(e.getWheelRotation());

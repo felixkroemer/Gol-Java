@@ -24,18 +24,23 @@ public class PixelPanel extends JPanel {
 		this.addMouseListener(new CellListener());
 
 		this.setFocusable(true);
-		this.setPreferredSize(new Dimension(Config.ROWS * Config.CELL_DIM, Config.COLUMNS * Config.CELL_DIM));
+		this.setPreferredSize(new Dimension(this.rows * this.cellDim, this.cols * this.cellDim));
 		this.setBackground(Config.C2);
 	}
 
 	public void initPanel(int rows, int cols) {
-		this.rows = Config.ROWS;
-		this.cols = Config.COLUMNS;
-		this.cellDim = Config.CELL_DIM;
+		this.rows = rows;
+		this.cols = cols;
+		this.cellDim = Config.ROWS * Config.CELL_DIM / this.rows;
+		int diff = Config.ROWS * Config.CELL_DIM - this.rows * this.cellDim;
+		if (diff > 0) {
+			this.rows += diff / this.cellDim;
+			this.cols += diff / this.cellDim;
+		}
 		this.cells = new Vector<Vector<Boolean>>();
-		for (int i = 0; i < cols; i++) {
+		for (int i = 0; i < this.cols; i++) {
 			this.cells.add(new Vector<Boolean>());
-			for (int j = 0; j < rows; j++) {
+			for (int j = 0; j < this.rows; j++) {
 				this.cells.get(i).addElement(false);
 			}
 		}
@@ -94,21 +99,26 @@ public class PixelPanel extends JPanel {
 	}
 
 	public int zoomGap(int a) {
-		long newDim = Math.round(this.getWidth() / ((this.cellDim + a) * 1.0));
-		return (int) (this.cols - (newDim % 2 == 0 ? newDim : newDim-1));
+		double newDim = Math.ceil(this.getWidth() / ((this.cellDim + a) * 1.0));
+		return (int) (this.cols - newDim);
 	}
 
 	public void zoom(int a, boolean[][] updatedCells) {
-		int diff = this.zoomGap(a);
+		int gap = this.zoomGap(a);
 		this.cellDim += a;
+		if (Math.abs(gap) <= 1) {
+			this.repaint();
+			return;
+		}
 
-		for (int i = 0; i < Math.abs(diff) / 2; i++) {
+		int s = this.cells.size();
+		for (int i = 0; i < Math.abs(gap) / 2; i++) {
 			if (a > 0) {
 				this.cells.remove(0);
 				this.cells.remove(this.cells.size() - 1);
 			} else {
 				Vector<Boolean> v1 = new Vector<Boolean>();
-				for (int k = 0; k < this.rows; k++) {
+				for (int k = 0; k < s; k++) {
 					v1.add(false);
 				}
 				this.cells.add(v1);
@@ -116,7 +126,7 @@ public class PixelPanel extends JPanel {
 			}
 		}
 		for (int i = 0; i < this.cells.size(); i++) {
-			for (int j = 0; j < Math.abs(diff) / 2; j++) {
+			for (int j = 0; j < Math.abs(gap) / 2; j++) {
 				if (a > 0) {
 					this.cells.get(i).remove(0);
 					this.cells.get(i).remove(this.cells.get(i).size() - 1);
@@ -133,8 +143,8 @@ public class PixelPanel extends JPanel {
 				}
 			}
 		}
-		this.cols -= diff;
-		this.rows -= diff;
+		this.cols -= gap / 2 * 2;
+		this.rows -= gap / 2 * 2;
 
 		this.repaint();
 	}
@@ -169,7 +179,7 @@ public class PixelPanel extends JPanel {
 	}
 
 	class CellListener extends MouseAdapter {
-		
+
 		@Override
 		public void mouseClicked(MouseEvent e) {
 			int[] coords = PixelPanel.this.getCellCoordinates(e.getX(), e.getY());
